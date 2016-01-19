@@ -1,0 +1,33 @@
+#!/usr/bin/env	ruby
+
+require 'openstack'
+require 'trollop'
+
+
+@opts = Trollop.options do
+	opt :Host, "Target host", :type => :string
+	opt :warning, "Warning threshold", :type => :integer, :default => 3000
+	opt :critical, "Critical threshold", :type => :integer, :default => 4000
+	opt :user, "Openstack user name", :type => :string
+	opt :password, "Openstack password", :type => :string
+	opt :tenant, "Openstack tenant name", :type => :string
+end
+
+
+os = OpenStack::Connection.create({:username => @opts[:user], :api_key => @opts[:password], :auth_method=>"password", :auth_url => "http://#{@opts[:Host]}:5000/v2.0/", :authtenant_name =>@opts[:tenant], :service_type=>"compute"})
+
+instances = os.list_servers(:all_tenants => 1).count
+
+status = "OK"
+code = 0
+
+if instances >= @opts[:warning]
+	status = "WARN"
+	code = 1
+end
+if instances >= @opts[:critical]
+	status = "CRITICAL"
+	code = 2
+end
+puts "INSTANCES #{status} - #{instances} instances|instances=#{instances}instances;#{@opts[:warning]};#{@opts[:critical]}"
+exit code
