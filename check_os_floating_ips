@@ -1,0 +1,56 @@
+#!/usr/bin/env	ruby
+
+require 'openstack'
+require 'ipaddress'
+require 'optparse'
+
+OptionParser.new do |opts|
+	opts.on('-H=HOST', '--host=HOST', 'Keystone endpoint') do |h|
+		@host = h
+	end
+	opts.on('-w=WARN', '--warn=WARN', 'Warning threshold') do |w|
+		@warn = w.to_i
+	end
+	opts.on('-c=CRIT', '--critical=CRIT', 'Critical threshold') do |c|
+		@crit = c.to_i
+	end
+	opts.on('-u=USER', '--user=USER', 'Openstack user') do |u|
+		@user = u
+	end
+	opts.on('-p=PASSWORD', '--password=PASSWORD', 'Openstack password') do |p|
+		@pass = p
+	end
+	opts.on('-t=TENANT', '--tenant=TENANT', 'Openstack tenant') do |t|
+		@tenant = t
+	end
+end.parse!
+
+os = OpenStack::Connection.create({:username => @user, :api_key => @pass, :auth_method=>"password", :auth_url => "http://#{@host}:5000/v2.0/", :authtenant_name =>@tenant, :service_type=>"network"})
+
+ext_nets = os.list_networks.select{|net| net.external == true }
+float_total = 0
+float_used = os.list_floating_ips.count
+
+ext_nets.each do |net|
+	net.subnets.each do |subnet_id|
+		subnet = os.list_subnets.select{|sub| sub.id == subnet_id}.first
+		subnet.allocation_pools.each do |pool|
+			start = IPAddress.parse pool["start"]
+			finish = IPAddress.parse pool["end"]
+			float_total = float_total + (finish - start)
+		end
+	end
+end
+float_avail = float_total-float_used
+status = "OK"
+code = 0
+if float_avail <= @warn
+	status = "WARN"
+	code = 1
+end
+if float_avail <= @crit
+	status = "CRITICAL"
+	code = 2
+end
+puts "FLOATING_IPS #{status} - #{float_avail}/#{float_total} available|avail=#{float_avail}addresses;#{@warn};#{@crit}"
+exit code
