@@ -37,3 +37,4 @@ end
 
 
 puts "MEMORY #{@status} - #{free} MB Free|free=#{free}mb;#{opts[:warning]};#{opts[:critical]}"
+exit @code
