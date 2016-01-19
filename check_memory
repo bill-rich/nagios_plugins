@@ -26,11 +26,11 @@ free = ((real_free + buffer + cache)/1024)
 @code = 0
 @status = "OK"
 
-if free < opts[:warning]
+if free <= opts[:warning]
 	@code = 1
 	@status = "WARNING"
 end
-if free < opts[:critical]
+if free <= opts[:critical]
 	@code = 2
 	@status = "CRITICAL"
 end
