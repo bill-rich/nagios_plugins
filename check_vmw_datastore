@@ -1,0 +1,73 @@
+#!/usr/bin/env ruby
+require 'rbvmomi'
+require 'optparse'
+
+host = String.new
+user= String.new
+password= String.new
+datacenter_name= String.new
+target_name= String.new
+max_usage=0
+
+OptionParser.new do |opts|
+	opts.on("-h=HOST", "--host=HOST", "vCenter host") do |h|
+		host = h
+	end
+	opts.on("-u=USER", "--user=USER", "vCenter username") do |u|
+		user = u
+	end
+	opts.on("-p=PASS", "--password=PASSWORD", "vCenter password") do |p|
+		password = p
+	end
+	opts.on("-d=DATACENTER", "--datacenter=DATACENTER", "Datacenter of target") do |d|
+		datacenter_name = d
+	end
+	opts.on("-s=DATASTORE", "--target=DATASTORE", "Datastore to monitor") do |s|
+		target_name = s
+	end
+	opts.on("-m=MAX", "--max=MAX", "Max datastore usage") do |m|
+		max_usage = m.to_i
+	end
+end.parse!
+	`echo "vim = RbVmomi::VIM.connect host: #{host}, user: #{user}, password: '#{password}', :insecure => true --- #{max_usage} #{target_name} #{datacenter_name}" > /tmp/file3`
+#begin
+	vim = RbVmomi::VIM.connect host: host, user: user, password: password, :insecure => true
+	dc = vim.serviceInstance.find_datacenter(datacenter_name)
+
+	target =  dc.datastoreFolder.children.select{|ds| ds.name == target_name}.first
+	$status="OK"
+	$exitcode=0
+	$free_space=target.summary.freeSpace.to_f
+	$capacity=target.summary.capacity.to_f
+	begin
+		if defined? target.children
+			target.children.each do |ds|
+				if ds.summary.accessible == false
+					$status="ERROR"
+					$exitcode=2
+				end
+			end
+		else
+			if target.summary.accessible == false
+				$status="ERROR"
+				$exitcode=2
+			end
+		end
+
+		if ((target.summary.capacity.to_f - target.summary.freeSpace.to_f)/target.summary.capacity.to_f)*100 > max_usage
+			$status="WARNING"
+			$exitcode=1
+		end
+	rescue
+		if not target.accessible
+			$status="ERROR"
+			$exitcode=2
+		end
+	end
+#rescue
+#	$status="UNKNOWN"
+#	$exitcode=3
+#end
+$utilization = (($capacity.to_f-$free_space.to_f)/$capacity.to_f)*100
+puts "DATASTORE #{$status} - free space #{$free_space}/#{$capacity}; | used=#{$utilization}%;70;80"
+exit $exitcode
