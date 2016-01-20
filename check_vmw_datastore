@@ -10,7 +10,7 @@ target_name= String.new
 max_usage=0
 
 OptionParser.new do |opts|
-	opts.on("-H=HOST", "--host=HOST", "vCenter host") do |H|
+	opts.on("-H=HOST", "--host=HOST", "vCenter host") do |h|
 		host = h
 	end
 	opts.on("-u=USER", "--user=USER", "vCenter username") do |u|
