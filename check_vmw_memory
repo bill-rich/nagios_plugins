@@ -1,0 +1,38 @@
+#!/usr/bin/env ruby
+require 'rbvmomi'
+require 'trollop'
+
+@opts = Trollop.options do
+	opt :Host, "Target vSphere host", :type => :string
+	opt :user, "vSphere user", :type => :string
+	opt :password, "vSphere password", :type => :string
+	opt :warning, "Warning threshold (MB)", :type => :integer
+	opt :critical, "Critical threshold (MB)", :type => :integer
+	opt :datacenter, "Datacenter name", :type => :string
+	opt :cluster, "vSphere cluster", :type => :string
+	opt :esx, "Name of ESXi host to check", :type => :string
+end
+
+begin
+	vim = RbVmomi::VIM.connect host: @opts[:Host], user: @opts[:user], password: @opts[:password], :insecure => true
+	dc = vim.serviceInstance.find_datacenter(@opts[:datacenter])
+
+	cluster =  dc.hostFolder.children.select{|cls| cls.name == @opts[:cluster]}.first
+	host = cluster.host.select{|hst| hst.name == @opts[:esx]}.first
+	$mem_used = host.summary.quickStats.overallMemoryUsage
+	$status="OK"
+	$exitcode=0
+	if $mem_used >= @opts[:warning]
+		$status="WARNING"
+		$exitcode=1
+	end
+	if $mem_used >= @opts[:critical]
+		$status="CRITICAL"
+		$exitcode=2
+	end
+rescue Exception => e
+	$status="UNKNOWN"
+	$exitcode=3
+end
+puts "MEMORY #{$status} - #{$mem_used} MB Used; | mem=#{$mem_used}mb;#{@opts[:warning]};#{@opts[:critical]}"
+exit $exitcode
