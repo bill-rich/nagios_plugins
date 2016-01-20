@@ -10,7 +10,7 @@ target_name= String.new
 max_usage=0
 
 OptionParser.new do |opts|
-	opts.on("-h=HOST", "--host=HOST", "vCenter host") do |h|
+	opts.on("-H=HOST", "--host=HOST", "vCenter host") do |H|
 		host = h
 	end
 	opts.on("-u=USER", "--user=USER", "vCenter username") do |u|
@@ -25,12 +25,14 @@ OptionParser.new do |opts|
 	opts.on("-s=DATASTORE", "--target=DATASTORE", "Datastore to monitor") do |s|
 		target_name = s
 	end
-	opts.on("-m=MAX", "--max=MAX", "Max datastore usage") do |m|
-		max_usage = m.to_i
+	opts.on("-w=WARNING", "--warning=WARNING", "Warning threshold (%)") do |m|
+		warning = w.to_i
+	end
+	opts.on("-c=CRITICAL", "--critical=CRITICAL", "Critical threshold (%)") do |m|
+		critical = c.to_i
 	end
 end.parse!
-	`echo "vim = RbVmomi::VIM.connect host: #{host}, user: #{user}, password: '#{password}', :insecure => true --- #{max_usage} #{target_name} #{datacenter_name}" > /tmp/file3`
-#begin
+begin
 	vim = RbVmomi::VIM.connect host: host, user: user, password: password, :insecure => true
 	dc = vim.serviceInstance.find_datacenter(datacenter_name)
 
@@ -43,31 +45,35 @@ end.parse!
 		if defined? target.children
 			target.children.each do |ds|
 				if ds.summary.accessible == false
-					$status="ERROR"
+					$status="CRITICAL"
 					$exitcode=2
 				end
 			end
 		else
 			if target.summary.accessible == false
-				$status="ERROR"
+				$status="CRITICAL"
 				$exitcode=2
 			end
 		end
 
-		if ((target.summary.capacity.to_f - target.summary.freeSpace.to_f)/target.summary.capacity.to_f)*100 > max_usage
+		if ((target.summary.capacity.to_f - target.summary.freeSpace.to_f)/target.summary.capacity.to_f)*100 >= warning and $status == "OK"
 			$status="WARNING"
 			$exitcode=1
 		end
+		if ((target.summary.capacity.to_f - target.summary.freeSpace.to_f)/target.summary.capacity.to_f)*100 >= critical and $status == "OK"
+			$status="CRITICAL"
+			$exitcode=2
+		end
 	rescue
 		if not target.accessible
-			$status="ERROR"
+			$status="CRITICAL"
 			$exitcode=2
 		end
 	end
-#rescue
-#	$status="UNKNOWN"
-#	$exitcode=3
-#end
+rescue
+	$status="UNKNOWN"
+	$exitcode=3
+end
 $utilization = (($capacity.to_f-$free_space.to_f)/$capacity.to_f)*100
-puts "DATASTORE #{$status} - free space #{$free_space}/#{$capacity}; | used=#{$utilization}%;70;80"
+puts "DATASTORE #{$status} - free space #{$free_space}/#{$capacity}; | used=#{$utilization}%;#{warning};#{critical}"
 exit $exitcode
