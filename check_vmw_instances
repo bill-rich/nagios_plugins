@@ -1,0 +1,59 @@
+#!/usr/bin/env ruby
+require 'rbvmomi'
+require 'trollop'
+
+@opts = Trollop.options do
+	opt :Host, "Target vSphere host", :type => :string
+	opt :user, "vSphere user", :type => :string
+	opt :password, "vSphere password", :type => :string
+	opt :warning, "Warning threshold (MB)", :type => :integer
+	opt :critical, "Critical threshold (MB)", :type => :integer
+	opt :datacenter, "Datacenter name", :type => :string
+end
+
+def vm_count(object)
+	vm = 0
+	powered = 0
+	template = 0
+	object.children.each do |item|
+		if defined? item.childType
+			@vm,@powered,@template = vm_count(item)
+			vm = vm + @vm
+			powered = powered + @powered
+			template = template + @template
+		else
+			if item.runtime.powerState == "poweredOn"
+				powered = powered +1
+			end
+			if item.summary.config.template == true
+				template = template +1
+			else
+				vm = vm +1
+			end
+		end
+	end
+	return vm,powered,template
+end
+
+begin
+	vim = RbVmomi::VIM.connect host: @opts[:Host], user: @opts[:user], password: @opts[:password], :insecure => true
+	dc = vim.serviceInstance.find_datacenter(@opts[:datacenter])
+	
+	vm,powered,template = vm_count(dc.vmFolder)
+
+	$status="OK"
+	$exitcode=0
+	if powered >= @opts[:warning]
+		$status="WARNING"
+		$exitcode=1
+	end
+	if powered >= @opts[:critical]
+		$status="CRITICAL"
+		$exitcode=2
+	end
+rescue Exception => e
+	$status="UNKNOWN"
+	$exitcode=3
+end
+puts "VMS #{$status} - #{powered} on; #{vm} total, #{template} templates | vms_on=#{powered}vms;#{@opts[:warning]};#{@opts[:critical]} vms_total=#{vm}vms;; templates=#{template}vms;;"
+exit $exitcode
