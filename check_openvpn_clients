@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+require 'openvpn_management'
+require 'pp'
+require 'trollop'
+
+opts = Trollop::options do
+	opt :Host, "Target host", :type => :string
+	opt :port, "Target Port", :type => :integer
+	opt :password, "Openvpn Management password", :type => :string
+end
+
+vpn_server = OpenvpnManagement.new :host => opts[:Host], :port => opts[:port], :password => opts[:password]
+clients = vpn_server.stats[:clients]
+vpn_server.destroy
+
+@code = 0
+@status = "OK"
+
+puts "CLIENTS #{@status} - #{clients} "
+
+if clients <= 1
+	@code = 2
+	@status = "CRITICAL"
+end
+
+exit @code
+
